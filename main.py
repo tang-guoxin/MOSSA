@@ -6,4 +6,6 @@ from IPython import display
 import matplotlib.animation as ani
 import pandas as pd
 
+import ObjFunc
+
 
