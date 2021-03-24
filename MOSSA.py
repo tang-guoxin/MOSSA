@@ -69,7 +69,6 @@ class creat():
     # 自适应网格优化: grid opt
     def gridOpt(self, rep):
         [Max, Min] = self.getBound(rep)
-
         print([Max, Min])
         pass
 
