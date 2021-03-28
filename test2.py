@@ -16,9 +16,17 @@ def main():
 
 
 if __name__ == "__main__":
-    pass
     main()
 
-a = {1: None, 2: 3}
-a.pop(1)
-print(a)
+class A:
+    def __init__(self):
+        self.a = 1
+
+    def loop(self):
+        for i in range(10):
+            self.a = i
+
+aa = A()
+aa.loop()
+print(aa.a)
+
