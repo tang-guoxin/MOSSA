@@ -1,7 +1,7 @@
 # user/bin/env python3
 # coding = 'utf-8'
 ####################################
-Info = '''
+'''
 ---------------------------------------
 create by T-XiaoMeng at 3/24/2021 18:32
 v 1.0
@@ -17,16 +17,15 @@ vub:        速度上边界
 prod:       生产者比例
 pred:       察觉危险者比例
 max_iter:   最大迭代次数
-eps:        误差上限
 w:          动态权重区间
 rep_num:    存档空间大小
 gdn:        网格细度
-abe:        变异率(仅在迭代的前80%发生)
+abe:        变异率(仅在迭代的前70%发生)
 ---------------------------------------
 rep 是一个列表，长度是一个定值，每个元素也是一个列表，第一个值为位置坐标，第二个值为多目标函数的适应度值
 ---------------------------------------
 '''
-print(Info)
+print(__doc__)
 ####################################
 import numpy as np
 import matplotlib.pyplot as plt
@@ -156,14 +155,14 @@ class Creat():
     def isParetoDominant(self, pop_i, his_pop):
         # print(pop_i, ":", his_pop)
         # print(self.fun(np.mat(his_pop)), ':', self.fun(np.mat(pop_i)))
-        if np.all(self.fun(np.mat(pop_i)) < self.fun(np.mat(his_pop))):
+        if np.all(self.fun(np.mat(pop_i)) <= self.fun(np.mat(his_pop))):
             return True
         else:
             return False
         return False
 
     # 处理第 i 个值的边界 vel or pop
-    def dealBorder(self, i, name='vel'):
+    def dealBorder(self, i, name='pop'):
         if name == 'vel':
             vel_lb = np.where(self.vel[i, :] < self.vlb)[0].shape[0]
             vel_ub = np.where(self.vel[i, :] > self.vub)[0].shape[0]
@@ -179,50 +178,62 @@ class Creat():
                 self.vel[i, :][idx] = self.vub
             return True
         if name == 'pop':
-            pop_lb = np.where(self.pop[i, :] < self.lb)[0].shape[0]
-            pop_ub = np.where(self.pop[i, :] > self.lb)[0].shape[0]
-            if pop_lb == 0:
-                pass
+            if type(self.lb) is type(()):
+                for j in range(self.dim):
+                    if self.pop[i, j] < self.lb[j]:
+                        self.pop[i, j] = self.lb[j]
+                    if self.pop[i, j] > self.ub[j]:
+                        self.pop[i, j] = self.ub[j]
             else:
-                idx = np.where(self.pop[i, :] < self.lb)
-                self.pop[i, :][idx] = self.lb
-            if pop_ub == 0:
-                pass
-            else:
-                idx = np.where(self.pop[i, :] > self.ub)
-                self.pop[i, :][idx] = self.ub
+                pop_lb = np.where(self.pop[i, :] < self.lb)[0].shape[0]
+                pop_ub = np.where(self.pop[i, :] > self.ub)[0].shape[0]
+                if pop_lb == 0:
+                    pass
+                else:
+                    idx = np.where(self.pop[i, :] < self.lb)
+                    self.pop[i, :][idx] = self.lb
+                if pop_ub == 0:
+                    pass
+                else:
+                    idx = np.where(self.pop[i, :] > self.ub)
+                    self.pop[i, :][idx] = self.ub
             return True
         print('Error name = "pop" or "vel"...')
         return False
 
-    # 选择身生产者
+    # 选择身生产者 返回值是离 leader 最远的一个个体, 同时也会产生生产者的位置 id
     def choseProd(self, leader):
         dis = {}
         self.label = [False for i in range(self.nVar)]
         for i in range(self.nVar):
             dis[i] = np.sum(np.power(leader - self.pop[i, :], 2))
         ls = sorted(dis.items(), key=lambda kv: (kv[1], kv[0]), reverse=False)
-        for i in range(int(np.ceil(self.prod * self.max_iter))):
+        cnt = int(np.ceil(self.prod * self.max_iter))
+        for i in range(cnt):
             self.label[ls[i][0]] = True
-        return True
+        worst_id = []
+        for i in range(cnt+1, self.nVar):
+            worst_id.append(ls[i][0])
+        return worst_id
 
     # 更新生产者: 在MOSSA中, 我们认为, 离 Pareto 前端越靠近的点作为生产者
     def refProduct(self, ite, leader, rep, his_pop):
         for i in range(self.nVar):
             if self.label[i] == False:
                 continue
-            if np.random.random() > 0.5 + np.random.random()/5:
+            if np.random.random() < 0.5 + np.random.random()/5:
                 self.pop[i, :] = self.pop[i, :] + np.random.randn()
                 self.dealBorder(i, 'pop')
             else:
-                self.vel[i, :] = np.random.random() * (his_pop[i, :] - self.pop[i, :]) + np.random.random() * (leader - self.pop[i, :])
-                self.dealBorder(i, 'vel')
-                new_w = self.w[1] - ite * (self.w[1] - self.w[0]) / self.max_iter
-                self.pop[i, :] = self.pop[i, :] + new_w * self.vel[i, :]
+                self.pop[i, :] = self.pop[i, :] * np.exp(-i / (np.random.random()*self.max_iter))
+                # self.vel[i, :] = np.random.random() * (his_pop[i, :] - self.pop[i, :]) + np.random.random() * (leader - self.pop[i, :])
+                # self.dealBorder(i, 'vel')
+                # new_w = self.w[1] - ite * (self.w[1] - self.w[0]) / self.max_iter
+                # self.pop[i, :] = self.pop[i, :] + new_w * self.vel[i, :]
                 self.dealBorder(i, 'pop')
             if self.isParetoDominant(self.pop[i, :], his_pop[i, :]) == True:
                 his_pop[i, :] = self.pop[i, :]
-                print('新的Pareto.')
+                # print('新的Pareto.')
                 fval = self.fun(np.mat(self.pop[i, :]))
                 fval = np.array([fval[0][i] for i in range(self.num)])
                 rep.append([self.pop[i, :], fval])
@@ -238,14 +249,22 @@ class Creat():
         Ap = A.T * np.linalg.inv(A*A.T)
         ls = [Ap[i, 0] for i in range(self.dim)]
         Ap = np.array(ls)
-        for i in range(self.nVar):
-            if self.label[i] == True:
-                continue
-            self.pop[i, :] = leader + np.abs(self.pop[i, :]-leader) @ Ap
-            self.dealBorder(i, 'pop')
+        worst_id = self.choseProd(leader)
+        idx = int(np.ceil(self.prod * self.max_iter))
+        for i in worst_id:
+            if idx > self.nVar/2:
+                self.pop[i, :] = np.random.randn() * np.exp((self.pop[worst_id[-1], :]-self.pop[i, :])/(idx**2))
+                self.dealBorder(i, 'pop')
+        # for i in range(self.nVar):
+        #     if self.label[i] == True:
+        #         continue
+            else:
+                self.pop[i, :] = leader + np.abs(self.pop[i, :]-leader) @ Ap
+                self.dealBorder(i, 'pop')
+            idx += 1
             if self.isParetoDominant(self.pop[i, :], his_pop[i, :]) == True:
                 his_pop[i, :] = self.pop[i, :]
-                print('新的Pareto.')
+                # print('新的Pareto.')
                 fval = self.fun(np.mat(self.pop[i, :]))
                 fval = np.array([fval[0][i] for i in range(self.num)])
                 rep.append([self.pop[i, :], fval])
@@ -256,13 +275,19 @@ class Creat():
     # 更新察觉危险者
     def refPerceivedRisk(self, leader, rep, his_pop):
         idx = [i for i in range(self.nVar)]
+        worst_id = self.choseProd(leader)
         np.random.shuffle(idx)
         for i in range(int(self.pred*self.nVar)):
-            self.pop[idx[i], :] = leader + np.random.randn() * np.abs(self.pop[idx[i], :]-leader)
-            self.dealBorder(idx[i], 'pop')
+            if self.isParetoDominant(self.pop[idx[i]], leader) == False:
+                self.pop[idx[i], :] = leader + np.random.randn() * np.abs(self.pop[idx[i], :]-leader)
+                self.dealBorder(idx[i], 'pop')
+            else:
+                dis_f12 = np.sum(np.power((self.fun(np.mat(leader)) - self.fun(np.mat(self.pop[worst_id[-1], :]))), 2)) + 1e-6
+                self.pop[idx[i], :] = leader + np.random.uniform(-1, 1, 1) * np.abs(self.pop[idx[i], :] - self.pop[worst_id[-1], :]) / np.sqrt(dis_f12)
+                self.dealBorder(idx[i], 'pop')
             if self.isParetoDominant(self.pop[idx[i], :], his_pop[idx[i], :]) == True:
                 his_pop[idx[i], :] = self.pop[idx[i], :]
-                print('新的Pareto.')
+                # print('新的Pareto.')
                 fval = self.fun(np.mat(self.pop[idx[i], :]))
                 fval = np.array([fval[0][i] for i in range(self.num)])
                 rep.append([self.pop[idx[i], :], fval])
@@ -275,6 +300,7 @@ class Creat():
         for i in range(self.nVar):
             if np.random.random() < self.abe:
                 self.pop[i, :] = np.random.uniform(self.lb, self.ub, (1, self.dim))
+                # self.pop[i, :] = np.zeros((1, self.dim))
         return True
 
     # 初始化 his_pop
@@ -292,6 +318,13 @@ class Creat():
             for rp2 in rep:
                 if np.all(rp1[1] > rp2[1]):
                     flag = False
+                    break
+                if rp1[1][0] == rp2[1][0] and rp1[1][1] > rp2[1][1]:
+                    flag = False
+                    break
+                if rp1[1][0] > rp2[1][0] and rp1[1][1] == rp2[1][1]:
+                    flag = False
+                    break
             if flag == True:
                 new_rep.append(rp1)
         return new_rep
@@ -316,21 +349,27 @@ class Creat():
         rep = self.generatePareto(rep)
         Pa = self.rep2vec(rep)
         plt.subplot(1, 2, 1)
-        plt.plot(fval[:, 0], fval[:, 1], 'go')
+        plt.plot(fval[:, 0], fval[:, 1], 'g.')
         plt.subplot(1, 2, 2)
-        plt.plot(Pa[0], Pa[1], 'ro')
+        plt.plot(Pa[0], Pa[1], 'rx')
         plt.show()
         pass
+
+
 
 
 # %% -------------------------------------------
 import ObjFunc
 
-ZDT1 = ObjFunc.ZDT1
+fx2 = ObjFunc.x2f
 
-fun1 = ObjFunc.fun
+test1 = ObjFunc.testfun1 # ---
+test2 = ObjFunc.testfun2 # [-5, 5] dim = 3
+test3 = ObjFunc.testfun3 # [0, -30] [1, 30] dim = 2
+test4 = ObjFunc.testfun4 # [0.1, 1] [0.1, 1] dim = 2
 
-mode = Creat(fun=ZDT1, nVar=200, dim=30, num=2, lb=0, ub=1, vlb=-0.5, vub=0.5,
-             prod=0.2, pred=0.1, max_iter=100, w=None, rep_num=1000, gdn=20, abe=0.5)
+mode = Creat(fun=test4, nVar=10000, dim=2, num=2, lb=0.1, ub=1, vlb=-1, vub=1,
+             prod=0.2, pred=0.1, max_iter=200, w=None, rep_num=1000, gdn=10, abe=0.01)
 
 mode.train()
+
