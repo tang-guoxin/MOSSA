@@ -32,7 +32,7 @@ import matplotlib.pyplot as plt
 
 
 class Creat():
-    def __init__(self, fun, nVar, dim, num, lb, ub, vlb, vub, prod=0.2, pred=0.1, max_iter=100, w=None, rep_num=None, gdn=10, abe=0.05):
+    def __init__(self, fun, nVar, dim, num, lb, ub, vlb, vub, prod=0.2, pred=0.1, max_iter=100, w=None, rep_num=None, gdn=10, abe=0.05, isTest1=False):
         if w is None:
             w = [0.1, 0.9]
         if rep_num is None:
@@ -52,7 +52,8 @@ class Creat():
         self.gdn = gdn
         self.abe = abe
         # 初始化种群
-        self.pop = np.random.uniform(lb, ub, (nVar, dim))
+        # self.pop = np.random.uniform(lb, ub, (nVar, dim))
+        self.pop = self.chaos(lb, ub, nVar, dim)
         self.his_pop = None
         # 初始化速度
         self.vel = np.random.uniform(vlb, vub, (nVar, dim))
@@ -60,7 +61,49 @@ class Creat():
         self.rep_num = rep_num
         # 标记生产者
         self.label = [False for i in range(nVar)]
+        self.isTest1 = isTest1
         pass
+
+    # 最后一次尝试, 使用混沌序列: Logistic 映射
+    def chaos(self, lb, ub, nVar, dim):
+        pop = np.zeros((nVar, dim))
+        mu = [3.58, 3.62, 3.98, 3.71, 3.88]
+        for i in range(dim):
+            zk = []
+            zk.append(0.5)
+            for j in range(nVar):
+                zk.append(mu[np.random.randint(0, 5)]*zk[j]*(1-zk[j]))
+                if type(lb) is tuple:
+                    if np.random.random() < 0.5:
+                        pop[j, i] = lb[i] * zk[j]
+                    else:
+                        pop[j, i] = ub[i] * zk[j]
+                else:
+                    if np.random.random() < 0.5:
+                        pop[j, i] = lb*zk[j]
+                    else:
+                        pop[j, i] = ub*zk[j]
+        return pop
+
+    ### 专门用来处理test1的边界条件: 其为一个不等式约束
+    ## 其边界处理原则为: 靠近最近的一条边
+    def dealTest1Border(self, i):
+        if self.pop[i, 0] < self.lb:
+            self.pop[i, 0] = self.lb
+        if self.pop[i, 0] > self.ub:
+            x3 = (30-self.pop[i, 0]) / 5
+            x2 = 2*(15/2 - self.pop[i, 0])
+            x1 = 6*(13/2 - self.pop[i, 0])
+            self.pop[i, 0] = min(x1, x2, x3)
+        if self.pop[i, 1] < self.lb:
+            self.pop[i, 1] = self.lb
+        if self.pop[i, 1] > self.ub:
+            y1 = 13/2 - self.pop[i, 1]/6
+            y2 = 15/2 - self.pop[i, 1]/2
+            y3 = 30 - 5*self.pop[i, 1]
+            self.pop[i, 1] = min(y1, y2, y3)
+        return True
+
 
     # 取出存档的函数值
     def rep2vec(self, rep):
@@ -84,16 +127,22 @@ class Creat():
 
     # 轮盘对赌选取 leader <- 将密度映射到 0-1 之间 且网格密度越低, 被选取的概率越大
     def choseLeader(self, tho_oder, dic):
+        # print(tho_oder)
         all_tho = sum([thoi[1] for thoi in tho_oder])
         thos = [i[1] for i in tho_oder]
+        # print(thos)
         thos.reverse()
+        # print(thos)
         prob = [i / all_tho for i in np.cumsum(thos)]
         key_prob = [(0, prob[0])] + [(prob[i - 1], prob[i]) for i in range(1, len(prob))]
         chose_val = [v[0] for v in tho_oder]
         chose_dic = dict(zip(key_prob, chose_val))
+        # print(chose_dic)
         sel = np.random.random()
+        # print(key_prob)
+        # print(sel)
         for itv in key_prob:
-            if sel > itv[0] and sel < itv[1]:
+            if sel >= itv[0] and sel <= itv[1]:
                 leader = chose_dic[itv]
                 sel_loc = np.random.randint(len(dic[leader]))
                 return dic[leader][sel_loc][0]
@@ -163,6 +212,9 @@ class Creat():
 
     # 处理第 i 个值的边界 vel or pop
     def dealBorder(self, i, name='pop'):
+        if self.isTest1 == True:
+            self.dealTest1Border(i)
+            return True
         if name == 'vel':
             vel_lb = np.where(self.vel[i, :] < self.vlb)[0].shape[0]
             vel_ub = np.where(self.vel[i, :] > self.vub)[0].shape[0]
@@ -221,11 +273,12 @@ class Creat():
         for i in range(self.nVar):
             if self.label[i] == False:
                 continue
-            if np.random.random() < 0.5 + np.random.random()/5:
+            # if np.random.random() < 0.5 + np.random.random()/5:
+            if np.random.random() < 0.8:
                 self.pop[i, :] = self.pop[i, :] + np.random.randn()
                 self.dealBorder(i, 'pop')
             else:
-                self.pop[i, :] = self.pop[i, :] * np.exp(-i / (np.random.random()*self.max_iter))
+                self.pop[i, :] = np.random.randn() * self.pop[i, :] * np.exp(-i / (np.random.random()*self.max_iter))
                 # self.vel[i, :] = np.random.random() * (his_pop[i, :] - self.pop[i, :]) + np.random.random() * (leader - self.pop[i, :])
                 # self.dealBorder(i, 'vel')
                 # new_w = self.w[1] - ite * (self.w[1] - self.w[0]) / self.max_iter
@@ -335,7 +388,8 @@ class Creat():
         [rep, leader] = self.initRep(fval, self.pop)
         his_pop = self.initHis()
         for ite in range(self.max_iter):
-            print('第{}次搜索,当前rep数量{}.\n'.format(ite+1, len(rep)))
+            if show:
+                print('第{}次搜索,当前rep数量{}.\n'.format(ite+1, len(rep)))
             if ite < 0.8*self.max_iter:
                 self.variation()
             self.choseProd(leader)
@@ -348,28 +402,13 @@ class Creat():
             leader = self.choseLeader(tho_oder, dic)
         rep = self.generatePareto(rep)
         Pa = self.rep2vec(rep)
-        plt.subplot(1, 2, 1)
-        plt.plot(fval[:, 0], fval[:, 1], 'g.')
-        plt.subplot(1, 2, 2)
-        plt.plot(Pa[0], Pa[1], 'rx')
-        plt.show()
-        pass
-
-
-
+        # plt.subplot(1, 2, 1)
+        # plt.plot(fval[:, 0], fval[:, 1], 'g.')
+        # plt.subplot(1, 2, 2)
+        # plt.plot(Pa[0], Pa[1], 'rx')
+        # plt.show()
+        return Pa[0], Pa[1]
 
 # %% -------------------------------------------
-import ObjFunc
 
-fx2 = ObjFunc.x2f
-
-test1 = ObjFunc.testfun1 # ---
-test2 = ObjFunc.testfun2 # [-5, 5] dim = 3
-test3 = ObjFunc.testfun3 # [0, -30] [1, 30] dim = 2
-test4 = ObjFunc.testfun4 # [0.1, 1] [0.1, 1] dim = 2
-
-mode = Creat(fun=test4, nVar=10000, dim=2, num=2, lb=0.1, ub=1, vlb=-1, vub=1,
-             prod=0.2, pred=0.1, max_iter=200, w=None, rep_num=1000, gdn=10, abe=0.01)
-
-mode.train()
 

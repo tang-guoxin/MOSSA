@@ -85,6 +85,22 @@ def testfun4(x):
     ret[:, 1] = tf42(x)
     return ret
 # ----------------------------------------------------------------------
+
+def tf51(x):
+    L = 200
+    return L * (2*x[:, 0] + np.sqrt(2*x[:, 1]) + np.sqrt(x[:, 2]) + x[:, 3])
+
+def tf52(x):
+    A = 10 * 200 / (2*1e5)
+    return A * (2/x[:, 1] + 2*np.sqrt(2)/x[:, 1] - 2*np.sqrt(2)/x[:, 2] + 2/x[:, 3])
+
+def testfun5(x):
+    n = x.shape[0]
+    ret = np.zeros((n, 2))
+    ret[:, 0] = tf51(x)
+    ret[:, 1] = tf52(x)
+    return ret
+# ----------------------------------------------------------------------
 def x2f(x):
     n = x.shape[0]
     ret = np.zeros((n, 2))
@@ -92,7 +108,43 @@ def x2f(x):
     ret[:, 1] = np.power(x-1, 2)[:, 0]
     return ret
 ######################################################################
-# x = np.random.uniform(0, 1, (5, 2))
+def choseFun(name = 'test1'):
+    if name == 'test5':
+        nVar = 8000
+        dim = 4
+        lb = (0.05, 0.070710678, 0.070710678, 0.15)
+        ub = (0.15, 0.15, 0.15, 0.15)
+        return [testfun5, nVar, dim, lb, ub]
+    if name == 'test4':
+        nVar = 10000
+        dim = 2
+        lb = 0.1
+        ub = 1
+        return [testfun4, nVar, dim, lb, ub]
+    if name == 'test3':
+        nVar = 4000
+        dim = 2
+        lb = (0, -30)
+        ub = (1, 30)
+        return [testfun3, nVar, dim, lb, ub]
+    if name == 'test2':
+        # nVar = 12000
+        nVar = 500
+        dim = 3
+        lb = -5
+        ub = 5
+        return [testfun2, nVar, dim, lb, ub]
+    if name == 'test1':
+        nVar = 5000
+        dim = 2
+        lb = 0
+        ub = 7
+        return [testfun1, nVar, dim, lb, ub]
+    return False
+
+######################################################################
+
+# x = np.random.uniform(0, 1, (5, 4))
 #-----------------------------------------
 # y = ZDT1(x)
 # print(y)
@@ -109,3 +161,5 @@ def x2f(x):
 # print(test3(x))
 
 # print(testfun4(x))
+# print(testfun5(x))
+
